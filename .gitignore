@@ -1,0 +1,38 @@
+# --- Secrets: never commit your token ---
+my_token.json
+*token*.json
+!token-template.json
+
+# --- Generated data & outputs (contain member names/emails/numbers) ---
+output/*
+!output/.gitkeep
+lists/
+*_results.csv
+*_contacts.csv
+*_officers.csv
+*_chapters.csv
+*_roster.html
+*_roster.pdf
+*.pdf
+*_cache.json
+section_officers_cache.json
+
+# --- Internal / roadmap docs: keep out of a public repo ---
+docs-internal/
+2026_YP_SI.md
+
+# --- Python ---
+oua_env/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# --- Editor / OS ---
+.idea/
+.vscode/
+.DS_Store
+
+# --- Unrelated nested repo ---
+vtoolseventsanalysis/
