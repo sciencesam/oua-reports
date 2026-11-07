@@ -2,6 +2,9 @@
 my_token.json
 *token*.json
 !token-template.json
+# vTools browser-session handoff (cookies!)
+my_vtools_curl.txt
+*vtools_cookie*
 
 # --- Generated data & outputs (contain member names/emails/numbers) ---
 output/*
@@ -36,3 +39,5 @@ __pycache__/
 
 # --- Unrelated nested repo ---
 vtoolseventsanalysis/
+
+cache/

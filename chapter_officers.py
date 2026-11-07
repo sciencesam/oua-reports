@@ -12,9 +12,12 @@ Data sources:
 1. "Geo OU Analysis" > "Chapter Summary" view for the chapter inventory
    (includes chapters that currently have no officers).
 
-2. "Volunteer Positions & History" view for the officers. Chapter rows
-   there have no section column, so officers are matched to the inventory
-   by chapter OU name.
+2. "Volunteer Positions & History" view for the officers (the "IEEE OU
+   Analytics" project copy, which also carries past positions). Chapter
+   rows there have no section column, so officers are matched to the
+   inventory by chapter OU name. For each position the most recent past
+   holder (by Position End) is reported alongside the current one, so a
+   vacant seat still names who to ask.
 
 Usage examples:
 
@@ -25,6 +28,7 @@ Usage examples:
 
 import argparse
 import csv
+import datetime
 import io
 import json
 import logging
@@ -46,8 +50,13 @@ http_options = {'headers': headers}
 
 # "Chapter Summary" view in the "Geo OU Analysis" workbook
 chapter_summary_view_id = "aca6fc53-83e9-43da-9dae-d94fa2d8b568"
-# "Volunteer Positions" view in the "Queries for Tableau API users" project
-volunteer_view_id = "53aef8cf-e84c-445d-9368-4ff94acbc777"
+# "Volunteer Positions" view in the "IEEE OU Analytics" project's copy of
+# "Volunteer Positions & History". Unlike the API-users copy (53aef8cf...),
+# this one exports past positions too. It needs "OU Type" set (the
+# dashboard is empty until it is) and it selects active vs past rows through
+# a Tableau parameter whose name has TWO spaces before "Parameter".
+volunteer_view_id = "8294b666-4829-4c5d-9144-9049a36b6dcc"
+position_status_parameter = "Officer Position Status  Parameter"
 
 chair_position = "Chapter Chair"
 vice_chair_position = "Chapter Vice Chair"
@@ -97,7 +106,9 @@ society_names = {
 }
 
 output_columns = ["Society Code", "Society", "Section", "Chapter",
-                  "Chair", "Chair Email", "Vice Chair", "Vice Chair Email"]
+                  "Chair", "Chair Email", "Vice Chair", "Vice Chair Email",
+                  "Previous Chair", "Previous Chair Email", "Previous Chair Term",
+                  "Previous Vice Chair", "Previous Vice Chair Email", "Previous Vice Chair Term"]
 
 
 def normalize_header(name):
@@ -206,6 +217,7 @@ def query_chapters(server, sections):
         chapters.setdefault(normalize_ou_name(ou_name), {
             "Chapter": ou_name,
             "Section": section,
+            "Region": row.get("region geo spo id", ""),
             "codes": codes,
         })
     return chapters
@@ -216,19 +228,55 @@ def fetch_officer_rows(server):
     can be reused across query_chapter_officers calls for several areas."""
     return list(query_view(server, volunteer_view_id, {
         "OU Type": "Chapter,Joint Chapter",
-        "Volunteer Position Status ": "Active",
         "OU Position": ",".join([chair_position, vice_chair_position]),
+        position_status_parameter: "Active",
     }))
 
 
-def query_chapter_officers(server, chapters, officer_rows=None):
+def fetch_past_officer_rows(server, regions=None):
+    """Fetch past (ended) chapter chair and vice chair rows once, for reuse
+    across areas. `regions` is a collection of region codes such as
+    {"R1", "R2"} taken from the chapters being reported; None means all
+    regions."""
+    view_filters = {
+        "OU Type": "Chapter,Joint Chapter",
+        "OU Position": ",".join([chair_position, vice_chair_position]),
+        position_status_parameter: "Past",
+    }
+    if regions:
+        view_filters["Volunteer Region"] = ",".join(sorted(regions))
+    return list(query_view(server, volunteer_view_id, view_filters))
+
+
+def chapter_regions(chapters):
+    """Region codes (e.g. R1) covered by a chapter inventory."""
+    return {c["Region"] for c in chapters.values() if c.get("Region")}
+
+
+def parse_date(text):
+    for fmt in ("%d-%b-%Y", "%m/%d/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.datetime.strptime(text.strip(), fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def query_chapter_officers(server, chapters, officer_rows=None, past_officer_rows=None):
     """Look up active chapter chairs and vice chairs, matched to the
-    inventory by OU name. Adds chairs/vice_chairs lists to each chapter."""
+    inventory by OU name, plus the most recent past holder of each. Adds
+    chairs/vice_chairs lists and previous_chair/previous_vice_chair
+    (name, email, term) tuples to each chapter."""
     for chapter in chapters.values():
         chapter["chairs"] = []
         chapter["vice_chairs"] = []
+        chapter["previous_chair"] = None
+        chapter["previous_vice_chair"] = None
     if officer_rows is None:
         officer_rows = fetch_officer_rows(server)
+    if past_officer_rows is None:
+        past_officer_rows = fetch_past_officer_rows(server, chapter_regions(chapters))
+
     for row in officer_rows:
         chapter = chapters.get(normalize_ou_name(row.get("ou name", "")))
         if chapter is None:
@@ -242,6 +290,35 @@ def query_chapter_officers(server, chapters, officer_rows=None):
             chapter["chairs"].append(officer)
         elif row.get("ou position") == vice_chair_position and officer not in chapter["vice_chairs"]:
             chapter["vice_chairs"].append(officer)
+
+    # Most recent past holder per position: latest Position End wins.
+    latest = dict()
+    for row in past_officer_rows:
+        key = normalize_ou_name(row.get("ou name", ""))
+        if key not in chapters:
+            continue
+        name = " ".join(part for part in [row.get("first name", ""), row.get("last name", "")] if part)
+        if not name:
+            continue
+        ended = parse_date(row.get("position end", ""))
+        if ended is None:
+            continue
+        slot = (key, row.get("ou position"))
+        if slot not in latest or ended > latest[slot][0]:
+            started = row.get("position start", "")
+            term = f"{started} to {row.get('position end', '')}" if started else row.get("position end", "")
+            latest[slot] = (ended, (name, row.get("email address", ""), term))
+    for (key, position), (ended, previous) in latest.items():
+        if position == chair_position:
+            chapters[key]["previous_chair"] = previous
+        elif position == vice_chair_position:
+            chapters[key]["previous_vice_chair"] = previous
+
+
+def previous_columns(prefix, previous):
+    """Three output columns for a most-recent past holder, blank if none."""
+    name, email, term = previous if previous else ("", "", "")
+    return {prefix: name, prefix + " Email": email, prefix + " Term": term}
 
 
 def build_society_tables(chapters):
@@ -259,6 +336,8 @@ def build_society_tables(chapters):
                 "Chair Email": "; ".join(email for name, email in chapter["chairs"]),
                 "Vice Chair": "; ".join(name for name, email in chapter["vice_chairs"]) or "(vacant)",
                 "Vice Chair Email": "; ".join(email for name, email in chapter["vice_chairs"]),
+                **previous_columns("Previous Chair", chapter["previous_chair"]),
+                **previous_columns("Previous Vice Chair", chapter["previous_vice_chair"]),
             })
     rows.sort(key=lambda r: (r["Society"], r["Section"], r["Chapter"]))
     return rows

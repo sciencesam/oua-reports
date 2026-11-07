@@ -1,1 +1,4 @@
 tableauserverclient>=0.34
+requests>=2.31
+pandas>=2.2
+numpy>=1.26

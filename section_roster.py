@@ -23,10 +23,12 @@ style = """
          max-width: 60em; margin: 2em auto; padding: 0 1.5em; line-height: 1.45; }
   h1 { color: #00629B; font-size: 1.6em; margin-bottom: 0.1em; }
   .subtitle { color: #555; margin-top: 0; }
-  table { border-collapse: collapse; width: 100%; margin-top: 1em; font-size: 0.95em; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1em; font-size: 0.95em;
+          table-layout: fixed; }
   th { text-align: left; background: #eef4f8; color: #00426a; padding: 0.4em 0.6em;
        border-bottom: 2px solid #00629B; }
-  td { padding: 0.4em 0.6em; border-bottom: 1px solid #d8d8d8; vertical-align: top; }
+  td { padding: 0.4em 0.6em; border-bottom: 1px solid #d8d8d8; vertical-align: top;
+       overflow-wrap: anywhere; }
   tr:nth-child(even) td { background: #f7fafc; }
   a { color: #00629B; }
   .vacant { color: #a33; font-style: italic; }
@@ -133,7 +135,10 @@ def build_document(rows, title, email_lists=False):
 
     out.append("<table>")
     header_cells = "".join(f"<th>{html.escape(p)}</th>" for p in all_positions)
-    out.append(f"<tr><th style='width:28%'>Section</th>{header_cells}</tr>")
+    other = f"{(100 - 28) / len(all_positions):.1f}%"
+    out.append("<colgroup><col style='width:28%'>"
+               + "".join(f"<col style='width:{other}'>" for _ in all_positions) + "</colgroup>")
+    out.append(f"<tr><th>Section</th>{header_cells}</tr>")
     for section in sorted(sections):
         cells = "".join(f"<td>{officer_cell(sections[section].get(p, []))}</td>"
                         for p in all_positions)

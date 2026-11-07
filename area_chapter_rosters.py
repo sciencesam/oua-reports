@@ -43,8 +43,7 @@ def read_areas(areas_csv):
     return areas
 
 
-def report_area(server, officer_rows, region, area, sections, output_dir, pdf=False):
-    chapters = chapter_officers.query_chapters(server, sections)
+def report_area(server, officer_rows, past_officer_rows, region, area, sections, chapters, output_dir, pdf=False):
     if not chapters:
         logging.error("No chapters found for %s / %s", region, area)
         return
@@ -53,7 +52,7 @@ def report_area(server, officer_rows, region, area, sections, output_dir, pdf=Fa
         if section not in found_sections:
             logging.warning("%s / %s: no chapters found for %r (missing, or name "
                             "doesn't match OU Analytics)", region, area, section)
-    chapter_officers.query_chapter_officers(server, chapters, officer_rows)
+    chapter_officers.query_chapter_officers(server, chapters, officer_rows, past_officer_rows)
     rows = chapter_officers.build_society_tables(chapters)
 
     slug = slugify(f"{region} {area}")
@@ -114,8 +113,19 @@ def main():
     server = chapter_officers.get_server(args.token_file)
     officer_rows = chapter_officers.fetch_officer_rows(server)
 
+    # Build every area's chapter inventory first so the past-officer query
+    # can be scoped to exactly the regions involved and run once.
+    inventories = []
     for region, area, sections in areas:
-        report_area(server, officer_rows, region, area, sections, args.output_dir, args.pdf)
+        chapters = chapter_officers.query_chapters(server, sections)
+        inventories.append((region, area, sections, chapters))
+    regions = set()
+    for _, _, _, chapters in inventories:
+        regions |= chapter_officers.chapter_regions(chapters)
+    past_officer_rows = chapter_officers.fetch_past_officer_rows(server, regions)
+
+    for region, area, sections, chapters in inventories:
+        report_area(server, officer_rows, past_officer_rows, region, area, sections, chapters, args.output_dir, args.pdf)
 
 
 if __name__ == '__main__':

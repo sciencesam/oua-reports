@@ -25,13 +25,16 @@ style = """
   .subtitle { color: #555; margin-top: 0; }
   h2 { color: #00629B; border-bottom: 2px solid #00629B; padding-bottom: 0.15em;
        font-size: 1.2em; margin-top: 1.8em; }
-  table { border-collapse: collapse; width: 100%; margin-top: 0.6em; font-size: 0.95em; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.6em; font-size: 0.95em;
+          table-layout: fixed; }
   th { text-align: left; background: #eef4f8; color: #00426a; padding: 0.4em 0.6em;
        border-bottom: 2px solid #00629B; }
-  td { padding: 0.4em 0.6em; border-bottom: 1px solid #d8d8d8; vertical-align: top; }
+  td { padding: 0.4em 0.6em; border-bottom: 1px solid #d8d8d8; vertical-align: top;
+       overflow-wrap: anywhere; }
   tr:nth-child(even) td { background: #f7fafc; }
   a { color: #00629B; }
   .vacant { color: #a33; font-style: italic; }
+  .previous { color: #555; font-size: 0.85em; margin-top: 0.2em; }
   .summary { background: #eef4f8; padding: 0.8em 1em; border-left: 4px solid #00629B;
              margin-top: 1.2em; }
   @media print {
@@ -43,9 +46,19 @@ style = """
 """
 
 
-def officer_cell(name, email):
+def officer_cell(name, email, previous_name="", previous_email="", previous_term=""):
+    """Current holder(s) with mailto links; a vacant seat shows the most
+    recent past holder underneath as the person to ask."""
     if name == "(vacant)" or not name:
-        return '<span class="vacant">Vacant</span>'
+        cell = '<span class="vacant">Vacant</span>'
+        if previous_name:
+            contact = html.escape(previous_name)
+            if previous_email:
+                contact += f'<br><a href="mailto:{html.escape(previous_email)}">{html.escape(previous_email)}</a>'
+            cell += (f'<div class="previous">Previously: {contact}'
+                     + (f'<br>{html.escape(previous_term)}' if previous_term else "")
+                     + '</div>')
+        return cell
     parts = []
     for one_name, one_email in zip(name.split("; "), email.split("; ")):
         person = html.escape(one_name)
@@ -112,22 +125,24 @@ def build_document(rows, title):
     out.append('<div class="summary">'
                f"{len(chapters)} chapters across {len(societies)} societies. "
                "Joint chapters are listed under each participating society. "
-               f"{len(vacant_chairs)} chapters currently have a vacant Chair position."
+               f"{len(vacant_chairs)} chapters currently have a vacant Chair position; "
+               "for vacant seats the most recent past holder is shown as a contact."
                "</div>")
 
     for (society, code), society_rows in sorted(societies.items()):
         heading = society if society == code else f"{society} ({code})"
         out.append(f"<h2>{html.escape(heading)}</h2>")
         out.append("<table>")
-        out.append("<tr><th style='width:32%'>Chapter</th><th style='width:18%'>Section</th>"
-                   "<th style='width:25%'>Chair</th><th style='width:25%'>Vice Chair</th></tr>")
+        out.append("<colgroup><col style='width:32%'><col style='width:18%'>"
+                   "<col style='width:25%'><col style='width:25%'></colgroup>")
+        out.append("<tr><th>Chapter</th><th>Section</th><th>Chair</th><th>Vice Chair</th></tr>")
         for row in sorted(society_rows, key=lambda r: (r["Section"], r["Chapter"])):
             section = "Multiple sections (see chapter name)" if row["Section"] == "*" else row["Section"]
             out.append("<tr>"
                        f"<td>{html.escape(row['Chapter'])}</td>"
                        f"<td>{html.escape(section)}</td>"
-                       f"<td>{officer_cell(row['Chair'], row['Chair Email'])}</td>"
-                       f"<td>{officer_cell(row['Vice Chair'], row['Vice Chair Email'])}</td>"
+                       f"<td>{officer_cell(row['Chair'], row['Chair Email'], row.get('Previous Chair', ''), row.get('Previous Chair Email', ''), row.get('Previous Chair Term', ''))}</td>"
+                       f"<td>{officer_cell(row['Vice Chair'], row['Vice Chair Email'], row.get('Previous Vice Chair', ''), row.get('Previous Vice Chair Email', ''), row.get('Previous Vice Chair Term', ''))}</td>"
                        "</tr>")
         out.append("</table>")
 
