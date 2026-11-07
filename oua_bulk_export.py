@@ -10,6 +10,9 @@ Writes three CSVs into --data-dir (all personal data; keep local):
   yp_products.csv         every IEEE Young Professionals product row
                           (memberships detail view; row-level scoped to the
                           token owner's regions)
+  members_inactive.csv    (--only inactive, opt-in: ~200k rows) former
+                          members (IEEE Status Inactive/Arrears) in the
+                          same OUs, used to track attendees who lapsed
 
 Usage:
 
@@ -76,10 +79,15 @@ def export_history(token_file, regions, path):
     write_csv(path, rows)
 
 
-def export_members(token_file, path, scope):
+def export_members(token_file, path, scope, status=None):
+    """status=None exports the view's default (Active members only);
+    "Inactive,Arrears" exports former members (the 'IEEE Status' filter)."""
     rows = []
     for ou in scope or token_owner_scope(get_server(token_file)):
-        rows += export_rows(token_file, members_view_id, {"Volunteer SPO Name": ou})
+        filters = {"Volunteer SPO Name": ou}
+        if status:
+            filters["IEEE Status"] = status
+        rows += export_rows(token_file, members_view_id, filters)
     write_csv(path, rows)
 
 
@@ -95,7 +103,7 @@ def main():
     parser.add_argument("--regions", default="R1,R2", help="volunteer regions for the history export")
     parser.add_argument("--scope", help="comma-separated 'Volunteer SPO Name' values for the members "
                         "export (default: discovered from the token owner's Region roles)")
-    parser.add_argument("--only", choices=["history", "members", "yp"], action="append",
+    parser.add_argument("--only", choices=["history", "members", "inactive", "yp"], action="append",
                         help="run only these exports (repeatable)")
     parser.add_argument("-l", "--loglevel", default="INFO", choices=["ERROR", "WARNING", "INFO", "DEBUG"])
     args = parser.parse_args()
@@ -107,6 +115,9 @@ def main():
     if "members" in wanted:
         export_members(args.token_file, os.path.join(args.data_dir, "members.csv"),
                        [s.strip() for s in args.scope.split(",")] if args.scope else None)
+    if "inactive" in wanted:
+        export_members(args.token_file, os.path.join(args.data_dir, "members_inactive.csv"),
+                       [s.strip() for s in args.scope.split(",")] if args.scope else None, status="Inactive,Arrears")
     if "yp" in wanted:
         export_yp_products(args.token_file, os.path.join(args.data_dir, "yp_products.csv"))
 
