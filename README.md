@@ -386,3 +386,29 @@ determination table from `deep/attendee_yp_facts.csv` with neutral confirmations
 records need explaining. `methods_notes.html` (built inline in the session) holds the overlaid
 histograms for the matching rules and member activity thresholds.
 
+
+### `ag_windows.py` — YP affinity-group activity in a fixed calendar window, year over year
+
+```
+python ag_windows.py --vtools-dir output/data2026/vtools --window 08-07 11-05 --years 2024 2025 2026 \
+    --cohort 2026=output/summit2026/participants.csv -o output/summit2026/ag_windows.csv
+```
+
+Counts events whose primary host is a Region 1/2 YP affinity group (from
+`events_hosts.csv`) in the same calendar span in each year, with distinct
+registrants and reported attendance, and splits the groups by whether one of
+their officers was at a given cohort's Summit. Used when less than a year of
+data exists after an event and `--before year-earlier` windows are needed at
+the group level too.
+
+### `si_report_2026.py` — the November 2026 Strategic Initiative report
+
+```
+python si_report_2026.py --run-2025 output/summit2025_90d --run-2026 output/summit2026 \
+    --vtools-dir output/data2026/vtools --checkin YPS26_Reg.xlsx -o output/summit2026/si_report_2026.html --pdf
+```
+
+Method, the 2025 Summit one year on (headline figures from the finished 2025
+report), and the 2026 Summit three months on (two `summit_engagement.py` runs
+with `--window-days 90 --before year-earlier`, plus `ag_windows.py`). About
+2,300 words, six pages.
