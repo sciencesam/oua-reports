@@ -81,6 +81,18 @@ def monthly_share(reg, members, months, exclude_event):
     return out
 
 
+def embed_2025(path):
+    """Sections 1-6 and the appendices of the finished 2025 report, renumbered as 2.1-2.6."""
+    import re
+    s = open(path).read()
+    body = s[s.find("<div class='summary'"):]
+    body = re.sub(r"<h2>(\d)\. ", lambda m: f"<h2>2.{m.group(1)} ", body)
+    body = re.sub(r"\b([sS]ection) (\d)\b", lambda m: f"{m.group(1)} 2.{m.group(2)}", body)
+    body = body.replace("<div class='summary'", "<h3>The 2025 report in brief</h3><div class='summary'", 1)
+    i = body.find("<h2>Appendix")
+    return body[:i], body[i:]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--run-2025", required=True)
@@ -90,6 +102,7 @@ def main():
     ap.add_argument("--registered-2026", type=int, default=112)
     ap.add_argument("-o", "--output", required=True)
     ap.add_argument("--pdf", action="store_true")
+    ap.add_argument("--full-2025", help="summit_report.html of the finished 2025 report; its sections are embedded as Part 2 instead of the summary")
     args = ap.parse_args()
 
     p25, t25, c25 = load_run(args.run_2025)
@@ -179,24 +192,31 @@ def main():
                "<h3>Affinity groups</h3><p>Events where a YP affinity group is itself the primary host (most YP affinity groups appear mainly as co-hosts on other units' events), grouped by the group's connection to the Summit: an officer attended, the group gained an officer from among the attendees, or neither.</p>")
 
     # ---- 2 2025
-    out.append("<h2>2. The 2025 Summit, one year on</h2>"
-               f"<p>{Y25['attended']} people attended the 2025 Summit (August 22 to 24). {Y25['tracked']} were Region 1 or 2 members whose activity can be followed, at least {Y25['yps']} of them Young Professionals; {Y25['lapsed']} have since let their membership lapse. The full report, with per-section and per-group detail, is available on request; the headline results are these.</p>")
-    out.append(sc.stat_tiles([
-        ("Registered for an event in the year after", f"{Y25['registered_after_yp']} of {Y25['yps']}", f"tracked YPs; {Y25['registered_before_yp']} of {Y25['yps']} the year before"),
-        ("Took a role in a unit never served before", f"{Y25['new_role_yp']} of {Y25['yps']}", "tracked YPs"),
-        ("Organized at least one event", f"{Y25['organizers_after']} of {Y25['yps']}", f"{Y25['organizers_before']} the year before; events organized {Y25['organized_before']} → {Y25['organized_after']}"),
-        ("Renewed IEEE membership for 2026", f"{Y25['renewed']} of {Y25['tracked']}", "all tracked attendees (91%); Region 1 and 2 members overall, about 83%"),
-    ]))
-    out.append("<h3>Newcomers took on roles; officers carried on</h3>"
-               f"<p>{Y25['no_position']} of the {Y25['tracked']} tracked attendees held no volunteer position when they came. Within a year, {Y25['first_position']} had taken their first IEEE position, nearly all in their home section (three YP affinity group chairs, a section vice chair, a section treasurer, a newsletter editor and a section YP representative), and {Y25['newcomers_registered']} had registered for further events. Among YP members with similar prior activity who were not at the Summit, {Y25['cmp_new_position_pct']}% took a new position and {Y25['cmp_registered_pct']}% registered for an event in the same year. The {Y25['officers']} attendees who were already officers looked much like their peers on events and roles ({Y25['officers_registered']} registered, {Y25['officers_new_role']} took an additional role); where they did more is organizing.</p>")
-    out.append(sc.grouped_bars(["Took a first or new position", "Registered for a later event"],
-                               [("Attendees with no position (20)", [35, 75], None), ("Comparable YP members not at the Summit", [Y25['cmp_new_position_pct'], Y25['cmp_registered_pct']], None)],
-                               title="Year after the 2025 Summit: attendees who held no position, against comparable YP members", ylabel="% of group", value_format="{:.0f}%", ylim=100))
-    out.append("<h3>Affinity groups connected to the Summit ran more</h3>"
-               "<p>Counting only events where the YP affinity group is the primary host, the groups divide sharply by their connection to the Summit. The connection runs both ways: active groups send their officers to the Summit, and new groups recruit officers from the room. Groups with no connection mostly exist on paper, serving as co-hosts on other units' events.</p>")
-    out.append(sc.table(["Connection to the 2025 Summit", "Groups", "Events as primary host, year before → after", "Distinct registrants, year before → after"],
-                        [[g, n, f"{b} → {a}", f"{rb} → {ra}" if rb is not None else "–"] for g, n, b, a, rb, ra in Y25["ag_groups"]],
-                        "YP affinity groups in Regions 1 and 2 with events in either year"))
+    appendix_2025 = ""
+    if args.full_2025:
+        part2, appendix_2025 = embed_2025(args.full_2025)
+        out.append("<h2>2. The 2025 Summit, one year on</h2>"
+                   f"<p>{Y25['attended']} people attended the 2025 YP Summit (August 22 to 24). {Y25['tracked']} were Region 1 or 2 members whose activity can be followed, at least {Y25['yps']} of them Young Professionals; {Y25['lapsed']} have since let their membership lapse. What follows is the full one-year analysis, with per-section and per-group detail; the per-attendee tables are in the appendices.</p>")
+        out.append(part2)
+    else:
+        out.append("<h2>2. The 2025 Summit, one year on</h2>"
+                 f"<p>{Y25['attended']} people attended the 2025 Summit (August 22 to 24). {Y25['tracked']} were Region 1 or 2 members whose activity can be followed, at least {Y25['yps']} of them Young Professionals; {Y25['lapsed']} have since let their membership lapse. The full report, with per-section and per-group detail, is available on request; the headline results are these.</p>")
+        out.append(sc.stat_tiles([
+            ("Registered for an event in the year after", f"{Y25['registered_after_yp']} of {Y25['yps']}", f"tracked YPs; {Y25['registered_before_yp']} of {Y25['yps']} the year before"),
+            ("Took a role in a unit never served before", f"{Y25['new_role_yp']} of {Y25['yps']}", "tracked YPs"),
+            ("Organized at least one event", f"{Y25['organizers_after']} of {Y25['yps']}", f"{Y25['organizers_before']} the year before; events organized {Y25['organized_before']} → {Y25['organized_after']}"),
+            ("Renewed IEEE membership for 2026", f"{Y25['renewed']} of {Y25['tracked']}", "all tracked attendees (91%); Region 1 and 2 members overall, about 83%"),
+        ]))
+        out.append("<h3>Newcomers took on roles; officers carried on</h3>"
+                   f"<p>{Y25['no_position']} of the {Y25['tracked']} tracked attendees held no volunteer position when they came. Within a year, {Y25['first_position']} had taken their first IEEE position, nearly all in their home section (three YP affinity group chairs, a section vice chair, a section treasurer, a newsletter editor and a section YP representative), and {Y25['newcomers_registered']} had registered for further events. Among YP members with similar prior activity who were not at the Summit, {Y25['cmp_new_position_pct']}% took a new position and {Y25['cmp_registered_pct']}% registered for an event in the same year. The {Y25['officers']} attendees who were already officers looked much like their peers on events and roles ({Y25['officers_registered']} registered, {Y25['officers_new_role']} took an additional role); where they did more is organizing.</p>")
+        out.append(sc.grouped_bars(["Took a first or new position", "Registered for a later event"],
+                                   [("Attendees with no position (20)", [35, 75], None), ("Comparable YP members not at the Summit", [Y25['cmp_new_position_pct'], Y25['cmp_registered_pct']], None)],
+                                   title="Year after the 2025 Summit: attendees who held no position, against comparable YP members", ylabel="% of group", value_format="{:.0f}%", ylim=100))
+        out.append("<h3>Affinity groups connected to the Summit ran more</h3>"
+                   "<p>Counting only events where the YP affinity group is the primary host, the groups divide sharply by their connection to the Summit. The connection runs both ways: active groups send their officers to the Summit, and new groups recruit officers from the room. Groups with no connection mostly exist on paper, serving as co-hosts on other units' events.</p>")
+        out.append(sc.table(["Connection to the 2025 Summit", "Groups", "Events as primary host, year before → after", "Distinct registrants, year before → after"],
+                            [[g, n, f"{b} → {a}", f"{rb} → {ra}" if rb is not None else "–"] for g, n, b, a, rb, ra in Y25["ag_groups"]],
+                            "YP affinity groups in Regions 1 and 2 with events in either year"))
 
     # ---- 3 2026
     out.append("<h2>3. The 2026 Summit, three months on</h2>"
@@ -256,6 +276,9 @@ def main():
                "<li>The 2026 attendance count comes from the check-in sheet reconciled with leftover badges; people who passed the desk unrecorded, and walk-ins without a registration, are missing from it.</li>"
                "<li>Across Regions 1 and 2 as a whole, distinct people registering for any event fell about 14% between the year before and the year after the 2025 Summit; the attendees' increases are against that backdrop.</li></ul>"
                "<p class='note'>Scripts and documentation: github.com/sciencesam/oua-reports (private while under review; to move to the vTools Labs GitLab). Data as of November 7, 2026.</p>")
+
+    if appendix_2025:
+        out.append(appendix_2025)
 
     with open(args.output, "w") as fp:
         fp.write("<!doctype html><meta charset='utf-8'><title>YP Strategic Initiative report, November 2026</title>" + "".join(out))
