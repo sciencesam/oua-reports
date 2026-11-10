@@ -86,10 +86,10 @@ def embed_2025(path):
     import re
     s = open(path).read()
     body = s[s.find("<div class='summary'"):]
-    body = re.sub(r"<h2>(\d)\. ", lambda m: f"<h2>2.{m.group(1)} ", body)
+    body = re.sub(r"<h2([^>]*)>(\d)\. ", lambda m: f"<h2{m.group(1)}>2.{m.group(2)} ", body)
     body = re.sub(r"\b([sS]ection) (\d)\b", lambda m: f"{m.group(1)} 2.{m.group(2)}", body)
     body = body.replace("<div class='summary'", "<h3>The 2025 report in brief</h3><div class='summary'", 1)
-    i = body.find("<h2>Appendix")
+    i = re.search(r"<h2[^>]*>Appendix", body).start()
     return body[:i], body[i:]
 
 
