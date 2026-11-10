@@ -111,6 +111,7 @@ def main():
             roles[str(r.get("Member Number", "")).replace(".0", "").lstrip("0")] = r.get("No Fee?", "")
     t26["role_ticket"] = t26["member"].str.lstrip("0").map(roles).fillna("")
     speakers26 = int(t26["role_ticket"].str.contains("Speaker", case=False).sum())
+    speakers_all = int(ci["No Fee?"].str.contains("Speaker", case=False).sum()) if args.checkin else 0
     organizers26 = int(t26["role_ticket"].str.contains("Organizer|volunteer", case=False).sum())
     grants26 = int((t26["grant"] == "Y").sum()) if "grant" in t26 else 0
 
@@ -200,7 +201,7 @@ def main():
         ("Tracked attendees", str(S["all26"]["n"]), f"Region 1/2 members on the check-in sheet with a record; {S['yp26']['n']} YPs"),
         ("First-time attendees", str(S["first26"]["n"]), f"{S['ret26']['n']} were also at the 2025 Summit"),
         ("Held no volunteer position", str(S["nopos26"]["n"]), f"{S['first_nopos26']['n']} of them first-timers"),
-        ("Travel grants · speakers", f"{grants26} · {speakers26}", "among tracked attendees (organizers: %d)" % organizers26),
+        ("Speakers · travel grants", f"{speakers_all} · {grants26}", f"{speakers26} of the speakers are tracked Region 1/2 members; grants counted among tracked attendees (organizers: {organizers26})"),
     ]))
     out.append(f"<p>Tracked attendees came from {len(sections26)} sections; the largest contingents were "
                + ", ".join(f"{e(s)} ({n})" for s, n in sections26.head(6).items()) + ".</p>")
