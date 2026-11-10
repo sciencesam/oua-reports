@@ -114,6 +114,10 @@ def main():
     speakers_all = int(ci["No Fee?"].str.contains("Speaker", case=False).sum()) if args.checkin else 0
     organizers26 = int(t26["role_ticket"].str.contains("Organizer|volunteer", case=False).sum())
     grants26 = int((t26["grant"] == "Y").sum()) if "grant" in t26 else 0
+    gtypes = pd.read_csv(os.path.join(args.run_2026, "grants_2026.csv"), dtype=str, keep_default_na=False)
+    gtypes["member"] = gtypes["member"].str.lstrip("0")
+    gt = gtypes[gtypes["member"].isin(set(t26["member"].str.lstrip("0")))]["type"].value_counts()
+    grants_txt = " + ".join(f"{int(n)} {k.replace(' Grant', '')}" for k, n in gt.items()) or str(grants26)
 
     S = {k: group_stats(g) for k, g in {
         "all25": t25, "yp25": yp25, "nopos25": t25[t25.role_at_ref_name == "No position"],
@@ -160,7 +164,7 @@ def main():
                f"<li><b>The 2025 Summit, one year on:</b> of the {Y25['no_position']} attendees who held no volunteer position when they came, {Y25['first_position']} took their first IEEE position within the year and {Y25['newcomers_registered']} registered for further events; among comparable YP members who were not there, {Y25['cmp_new_position_pct']}% and {Y25['cmp_registered_pct']}%. Attendees who were already officers carried on as before but organized twice as many events ({Y25['organized_before']} → {Y25['organized_after']}). {Y25['renewed']} of {Y25['tracked']} tracked attendees renewed for 2026.</li>"
                f"<li><b>Affinity groups connected to the 2025 Summit ran more.</b> The 11 YP affinity groups whose officer attended went from 8 to 23 events as primary host; the 5 that gained an officer from among the attendees went from 2 to 30. Groups with no connection ran almost nothing in either year.</li>"
                f"<li><b>The 2026 Summit (Boston, August 7 to 9) drew {args.registered_2026} registrations</b>, {len(att26)} attended, with {S['all26']['n']} Region 1 and 2 members we can follow, {S['ret26']['n']} of whom were also at the 2025 Summit. Three months on, {S['first26']['reg_after']} of {S['first26']['n']} first-time attendees have registered for a further event ({S['first26']['reg_before']} did in the same three months a year earlier); among first-timers with no position, {S['first_nopos26']['reg_before']} → {S['first_nopos26']['reg_after']} of {S['first_nopos26']['n']}. No new positions yet: in 2025 the first ones appeared in September and most affinity-group elections fall in December and January.</li>"
-               "<li><b>Retention for the 2026 cohort is an early read only:</b> " f"{ren26} of {S['all26']['n']} have already renewed for 2027, the same pace as the Region as a whole; the full answer comes when renewal season closes in February. Whether the Summit recruited new members cannot be read from the records available to the Region. The three-month comparison is also shaped by its window: autumn programs that start in late November fall outside it.</li>"
+               "<li><b>Retention for the 2026 cohort cannot be read yet:</b> " f"renewal season for 2027 closes in February; so far {ren26} of {S['all26']['n']} have renewed, the same pace as the Region as a whole. For the 2025 cohort the first year is in: {Y25['renewed']} of {Y25['tracked']} renewed for 2026, against about 83% of Region 1 and 2 members overall. Whether the Summit recruited new members cannot be read from the records available to the Region. The three-month comparison is also shaped by its window: autumn programs that start in late November fall outside it.</li>"
                "</ul></div>")
 
     # ---- 1 Method
@@ -181,7 +185,7 @@ def main():
         ("Registered for an event in the year after", f"{Y25['registered_after_yp']} of {Y25['yps']}", f"tracked YPs; {Y25['registered_before_yp']} of {Y25['yps']} the year before"),
         ("Took a role in a unit never served before", f"{Y25['new_role_yp']} of {Y25['yps']}", "tracked YPs"),
         ("Organized at least one event", f"{Y25['organizers_after']} of {Y25['yps']}", f"{Y25['organizers_before']} the year before; events organized {Y25['organized_before']} → {Y25['organized_after']}"),
-        ("Renewed IEEE membership for 2026", f"{Y25['renewed']} of {Y25['tracked']}", "all tracked attendees"),
+        ("Renewed IEEE membership for 2026", f"{Y25['renewed']} of {Y25['tracked']}", "all tracked attendees (91%); Region 1 and 2 members overall, about 83%"),
     ]))
     out.append("<h3>Newcomers took on roles; officers carried on</h3>"
                f"<p>{Y25['no_position']} of the {Y25['tracked']} tracked attendees held no volunteer position when they came. Within a year, {Y25['first_position']} had taken their first IEEE position, nearly all in their home section (three YP affinity group chairs, a section vice chair, a section treasurer, a newsletter editor and a section YP representative), and {Y25['newcomers_registered']} had registered for further events. Among YP members with similar prior activity who were not at the Summit, {Y25['cmp_new_position_pct']}% took a new position and {Y25['cmp_registered_pct']}% registered for an event in the same year. The {Y25['officers']} attendees who were already officers looked much like their peers on events and roles ({Y25['officers_registered']} registered, {Y25['officers_new_role']} took an additional role); where they did more is organizing.</p>")
@@ -201,7 +205,7 @@ def main():
         ("Tracked attendees", str(S["all26"]["n"]), f"Region 1/2 members on the check-in sheet with a record; {S['yp26']['n']} YPs"),
         ("First-time attendees", str(S["first26"]["n"]), f"{S['ret26']['n']} were also at the 2025 Summit"),
         ("Held no volunteer position", str(S["nopos26"]["n"]), f"{S['first_nopos26']['n']} of them first-timers"),
-        ("Speakers · travel grants", f"{speakers_all} · {grants26}", f"{speakers26} of the speakers are tracked Region 1/2 members; grants counted among tracked attendees (organizers: {organizers26})"),
+        ("Speakers · travel grants", f"{speakers_all} · {grants26}", f"{speakers26} of the speakers are tracked Region 1/2 members; grants among tracked attendees: {grants_txt} (organizers: {organizers26})"),
     ]))
     out.append(f"<p>Tracked attendees came from {len(sections26)} sections; the largest contingents were "
                + ", ".join(f"{e(s)} ({n})" for s, n in sections26.head(6).items()) + ".</p>")
@@ -231,17 +235,17 @@ def main():
                         "Region 1 and 2 YP affinity groups, primary-host events only"))
     out.append("<h3>Early reads, and what cannot be read yet</h3><ul>"
                f"<li><b>Members retained.</b> Renewal season for 2027 opened in the autumn and closes in February, so only an early read exists: {ren26} of {S['all26']['n']} tracked 2026 attendees ({pct(ren26, S['all26']['n'])}) have already renewed for 2027, against {pct(ren_all, n_all)} of all {n_all:,} active Region 1 and 2 members, and {ren25} of {S['all25']['n']} 2025 attendees ({pct(ren25, S['all25']['n'])}). Attendees are renewing at the Region's pace, no faster; the full answer comes in March. For the 2025 cohort the first year is in: {Y25['renewed']} of {Y25['tracked']} renewed for 2026.</li>"
-               "<li><b>New members.</b> The OU Analytics exports available to the Region carry no IEEE join date (the YP product's dates cover product holders only, and grade history is truncated), so whether the Summit brought people into IEEE cannot be read from these records. It needs a survey question or a join-date field from the membership team.</li>"
-               "<li><b>New officers.</b> Most affinity-group and section elections take effect in December and January; the 2025 cohort's first-ever positions appeared from September through January.</li></ul>")
+               "<li><b>New members.</b> No OU Analytics export available to the Region carries an IEEE join date. The Members and Affiliates view has none; the Memberships view's initial join date and years of service are per society or affinity-group product (a 2011 Student Member whose YP product began in 2022 shows March 2022); and grade history is truncated. Whether the Summit brought people into IEEE needs a survey question or a join-date field from the membership team.</li>"
+               "<li><b>New officers.</b> Too soon: the 2025 cohort's first-ever positions appeared from September through January.</li></ul>")
 
     # ---- 4 MGA form
     out.append("<h2>4. For the MGA annual report form</h2>"
                "<p>The form asks for four counts and says to leave blank what is not measured. The Summit's direct figures are small by design; its purpose is what follows in sections and affinity groups, so each count is given as direct and indirect.</p>")
     out.append(sc.table(["Count", "Direct", "Indirect (measured spill-over from the 2025 Summit)"], [
         ["New members", "Not measurable from the records available to the Region (no IEEE join date); left blank", "—"],
-        ["Members retained", f"{Y25['renewed']} of {Y25['tracked']} tracked 2025 attendees renewed for 2026 (91%); {ren26} of {S['all26']['n']} 2026 attendees already renewed for 2027 (season closes in February)", "—"],
+        ["Members retained", f"{Y25['renewed']} of {Y25['tracked']} tracked 2025 attendees renewed for 2026 (91%, against about 83% of Region 1 and 2 members overall); 2026 cohort readable in March", "—"],
         ["People engaged", f"{args.registered_2026} registered for the 2026 Summit", "Distinct registrants at events run by Summit-connected YP affinity groups: 79 → 390 in the year after the 2025 Summit"],
-        ["Activities held", "1 (the 2026 Summit)", "Summit-connected YP affinity groups ran 53 events as primary host in the year after the 2025 Summit, against 10 the year before"],
+        ["Activities held", "2 (the 2026 Summit and one further Region YP event)", f"Summit-connected YP affinity groups ran 53 events as primary host in the year after the 2025 Summit, against 10 the year before; 2026 so far, {int(agw_all.loc[2026, 'events'])} AG-run events August to early November against {int(agw_all.loc[2025, 'events'])} a year earlier"],
     ]))
 
     # ---- 5 Caveats
